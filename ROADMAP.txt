@@ -1,0 +1,199 @@
+================================================================
+AI VOICE RECEPTIONIST, PRODUCT ROADMAP
+Last updated: 2026-05-02
+================================================================
+
+GUIDING PRINCIPLE
+
+  Build to demand, not imagination. Every item below is sized
+  by revenue impact and ranked by how directly it removes a
+  sales objection or unlocks a tier upgrade. Speculative items
+  are flagged "WAIT FOR PULL."
+
+  Same logic that applies to the routing add-on (see PRICING.txt)
+  applies to everything in NEXT and LATER: don't build until a
+  paying customer or a signed LOI is on the table.
+
+
+================================================================
+NOW, Required to scale past client #1 (next 4–8 weeks)
+================================================================
+
+These are blockers, not features. Nothing else ships until these are done.
+
+[ ] Close the 3 launch blockers from multi_client_and_ship_readiness_plan.md
+[ ] Upgrade Twilio off trial account (memory: twilio_account_state.md)
+[ ] Per-client tenancy: separate Twilio numbers, prompts, secrets, Sheets
+[ ] Per-client minute ceiling in app code (hard cost cap; Deepgram/Cartesia
+    can't enforce one)
+[ ] Stripe billing wiring: subscriptions, overage, setup fee, dunning
+[ ] One-page sales sheet for the rep (pricing tiers, ROI math, demo link)
+[ ] Demo flow the rep can run in 5 minutes (live or pre-recorded Loom)
+
+Revenue impact: gates ALL revenue. Without these, you can't onboard
+client #2 cleanly.
+
+
+================================================================
+NEXT, Features that close deals (3–6 months, demand-driven)
+================================================================
+
+Build any of these when a prospect names it as a deal-blocker. Don't
+pre-build. Get an LOI first if possible.
+
+  ─── Owner-visibility features (highest deal-close impact) ──────
+
+  • CLIENT DASHBOARD
+    Owner sees: live call list, transcripts, recordings, booking
+    log, monthly minute usage, trend charts.
+    Why it sells: owners don't trust black-box AI. A dashboard is
+    the #1 thing they'll ask about on a demo.
+    Effort: 2–3 weeks. Pitch as "included in Pro tier and above."
+    Pricing impact: enables Pro/Premium upsell vs. Starter.
+
+  • CALL RECORDING + SEARCHABLE TRANSCRIPTS
+    Twilio records, Deepgram transcripts already exist, bundle into
+    the dashboard with search/filter.
+    Why it sells: training material, dispute resolution, QA.
+    Effort: 1 week (mostly UI on existing data).
+
+  • DAILY EMAIL DIGEST TO OWNER
+    "Yesterday: 12 calls, 4 bookings, 1 emergency, 2 missed."
+    Why it sells: owners want a glance, not a dashboard, on day-to-day.
+    Effort: 3–5 days.
+
+  ─── Revenue-expansion features ─────────────────────────────────
+
+  • SMART SCHEDULING + ROUTE OPTIMIZATION (see PRICING.txt)
+    +$249/mo add-on. Wait for client pull.
+    Effort: 1–2 weeks (likely 3–4 with edge cases).
+
+  • OUTBOUND CALLING, appointment confirmations + reminders
+    Day-before reminder calls reduce no-shows by 20–40% in home
+    services. Owners will pay real money for this.
+    Why it sells: directly recovers revenue lost to no-shows.
+    Effort: 2 weeks (Twilio outbound + scheduling cron + opt-in
+    handling for TCPA compliance, important).
+    Pricing: +$99–$199/mo add-on, OR per-call ($0.50–$1.00/outbound).
+
+  • OUTBOUND, lapsed customer reactivation
+    Quarterly call/text to past customers: "It's been 90 days since
+    your last service, want us to schedule a follow-up?"
+    Why it sells: highest-ROI marketing channel for service businesses.
+    Effort: 1–2 weeks beyond the outbound foundation above.
+    Pricing: bundle into Premium tier or +$199/mo.
+
+  ─── Integration features (each unlocks a vertical) ─────────────
+
+  • CRM / FSM INTEGRATIONS
+    HouseCall Pro, ServiceTitan, Jobber, FieldEdge.
+    Why it sells: these are the tools every serious operator already
+    uses. Integration = "we fit into your stack."
+    Build order: whichever the first 3 prospects use. Don't pre-build.
+    Effort: 1–2 weeks per integration. Each is a distinct codepath.
+
+  • SPANISH-LANGUAGE SUPPORT
+    Pest, lawn, construction industries have heavy Spanish-speaking
+    customer base. Cartesia + Haiku both handle it; mostly a prompt
+    + voice-config swap.
+    Effort: 3–5 days. Charge nothing extra; it's a competitive must.
+
+  • SMS FALLBACK
+    Caller hangs up? Send SMS: "Sorry we couldn't connect, here's a
+    booking link." Recovers ~10–20% of dropped calls.
+    Effort: 1 week.
+
+
+================================================================
+LATER, Speculative; revisit at 10+ paying clients
+================================================================
+
+WAIT FOR PULL on all of these. None should ship before there's a
+clear customer ask AND it doesn't cannibalize a higher-tier feature.
+
+  • Custom voice cloning (owner's own voice for Premium tier)
+    Cartesia supports voice clones. Premium-tier-only sticker.
+
+  • On-call quote / estimate generation
+    LLM uses pricing rules to quote on the call ("a one-bedroom
+    treatment runs $180–$240"). Risk: liability if quote is wrong.
+    Needs strong guardrails and an opt-in disclaimer.
+
+  • Payment collection on call
+    Stripe-style "$50 deposit to hold the slot." Big trust uplift,
+    big compliance surface (PCI, refund handling).
+
+  • Lead quality scoring
+    Tag each call: hot / warm / cold based on intent signals.
+    Feed into CRM. Useful for owners with sales follow-up teams.
+
+  • Reputation / review collection automation
+    Post-service: "Hi, this is the AI from ABC Pest, would you
+    leave us a Google review?" Drives review velocity.
+
+  • Multi-vertical expansion (HVAC, plumbing, electrical, roofing)
+    Each vertical = new prompt template + taxonomy + pricing book.
+    Don't expand until pest is at 5–10 clients and the playbook
+    is repeatable.
+
+  • White-label / agency reseller program
+    Marketing agencies serving home services would sell this for
+    you. 30–40% revenue share. Only viable once self-serve
+    onboarding is solid (don't sell what you can't deliver).
+
+  • Compliance certifications (SOC 2, HIPAA)
+    SOC 2: needed for mid-market deals (>$2K MRR). 6-month, $20K+
+    process. Pull only when a deal requires it.
+    HIPAA: unlocks medical/dental verticals (much higher ACVs)
+    but adds material engineering and audit overhead.
+
+
+================================================================
+INFRA / OPERATIONAL, Behind-the-scenes, no client-facing pitch
+================================================================
+
+These don't appear on the pricing page but make everything else
+possible. Schedule them in proportion to client count.
+
+  • Prompt A/B testing framework, once you have 5+ clients, you'll
+    want to compare prompt variants on real call outcomes (booking
+    rate, call length, drop rate).
+
+  • Call quality analytics, automated detection of: long silences,
+    repeated questions, off-topic drift, customer frustration.
+    Feeds prompt improvement.
+
+  • Automated regression testing, replay past calls against prompt
+    changes (replay harness already exists in repo). Expand it.
+
+  • Per-client cost dashboards, internal view, not for clients.
+    Catch margin erosion early.
+
+  • Staging environment health monitoring, already partially in
+    place (STAGING.md). Round out before scaling clients.
+
+
+================================================================
+WHAT'S NOT ON THIS ROADMAP (and why)
+================================================================
+
+  ✗ Building our own LLM / fine-tuning Haiku
+    Premature. Haiku 4.5 + good prompting beats fine-tuning until
+    you have >100K calls of data and a clear performance gap.
+
+  ✗ A native mobile app for owners
+    Owners check email and dashboards, not new apps. Web dashboard
+    is enough through year 1.
+
+  ✗ Real-time call transfer to a live human
+    Twilio supports it, but adds operational complexity (who's on
+    call? what happens after-hours?). Wait for explicit demand.
+
+  ✗ Building our own STT/TTS
+    Cartesia and Deepgram are commodity-priced and improving faster
+    than we can build. Don't reinvent.
+
+
+================================================================
+END
+================================================================

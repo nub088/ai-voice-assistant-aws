@@ -1,0 +1,148 @@
+HOW TO RUN AND DEPLOY THE AI VOICE ASSISTANT
+=============================================
+
+Stage 2 architecture: the backend lives on fly.io. Inbound phone calls go
+Twilio → fly.io → Pipecat (Deepgram STT, Claude Haiku, Cartesia TTS). The web
+demo at https://clearslopedigital.com/demo points at the fly.io HTTPS URL.
+
+No laptop needs to be on for the demo to work.
+
+
+PRODUCTION DEPLOY (fly.io)
+--------------------------
+First-time setup:
+  flyctl auth login
+  flyctl apps create ai-receptionist
+  flyctl secrets set --config infra/fly/fly.toml \
+      ANTHROPIC_API_KEY=... \
+      DEEPGRAM_API_KEY=... \
+      CARTESIA_API_KEY=... \
+      CARTESIA_VOICE_ID=... \
+      TWILIO_ACCOUNT_SID=... \
+      TWILIO_AUTH_TOKEN=... \
+      TWILIO_SMS_FROM=+1XXXXXXXXXX \
+      OWNER_NOTIFY_NUMBER=+1YYYYYYYYYY \
+      GOOGLE_SERVICE_ACCOUNT_JSON="$(cat google-service-account.json)" \
+      GOOGLE_SHEET_ID=... \
+      APPS_SCRIPT_WEB_APP_URL=... \
+      DEMO_USERNAME=... \
+      DEMO_PASSWORD=... \
+      PUBLIC_BASE_URL=ai-receptionist.fly.dev
+
+  TWILIO_SMS_FROM and OWNER_NOTIFY_NUMBER are optional. Without them, the
+  app still runs, only the post-call SMS feature is disabled.
+
+Deploy:
+  flyctl deploy --config infra/fly/fly.toml
+
+After the first successful deploy:
+  - Cloudflare Pages → Environment Variables: set
+      PUBLIC_CHAT_API_URL = https://ai-receptionist.fly.dev
+  - Twilio Console → Phone Numbers → your number → Voice Configuration:
+      A CALL COMES IN: Webhook
+      URL:             https://ai-receptionist.fly.dev/twilio/voice
+      HTTP:            POST
+
+
+INBOUND CALL FLOW
+-----------------
+Caller dials Twilio number
+  → Twilio POSTs /twilio/voice → returns TwiML <Connect><Stream url="wss://…/twilio/stream"/>
+  → Twilio opens WebSocket to /twilio/stream (μ-law 8 kHz audio)
+  → Pipecat: Deepgram STT → Claude Haiku 4.5 → Cartesia TTS → back to caller
+  → Function tools: log_request (Google Sheet), end_call (graceful hangup)
+
+
+LOCAL DEVELOPMENT
+-----------------
+1. Copy and fill out env:
+   cp .env.example .env
+   # edit .env
+
+2. Create venv and install:
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python -m spacy download en_core_web_sm
+
+3. Run the backend:
+   ./start.sh
+   # serves http://localhost:8080
+
+4. To test the voice path locally you need a public WebSocket URL, the
+   simplest options are `cloudflared tunnel --url http://localhost:8080`
+   or `ngrok http 8080`. Set PUBLIC_BASE_URL in .env to the tunneled host
+   and point a Twilio test number's voice webhook at it.
+
+
+CREDENTIALS
+-----------
+Demo widget login: see DEMO_USERNAME / DEMO_PASSWORD in .env (or fly secrets).
+Each login session lasts 8 hours.
+
+
+POST-CALL SMS NOTIFICATIONS
+---------------------------
+After every successful intake (`log_request`), the system can send:
+
+  • Customer confirmation, to the caller's number, phrased by urgency:
+      routine    → "we'll follow up by the next business day"
+      soon       → "we'll follow up today"
+      emergency  → "we'll follow up shortly"
+
+  • Owner emergency alert, when urgency=="emergency", a text goes to
+      OWNER_NOTIFY_NUMBER with caller name, callback, address, and pest.
+
+Both require TWILIO_SMS_FROM (an SMS-capable Twilio number, E.164 format).
+The OWNER_NOTIFY_NUMBER is optional, leave it unset to disable owner pages
+while still sending customer confirmations.
+
+Anonymous / blocked callers are detected and the customer SMS is skipped;
+emergency owner pages still fire (the row in the Sheet is the source of truth).
+
+
+WEEKLY DIGEST
+-------------
+The CLI `python -m tools.llm_proxy.digest_cli` reads the booking sheet,
+computes a rolling-window summary (default 7 days), prints it to stdout,
+and appends a row to the `WeeklyDigest` tab in the same spreadsheet.
+
+Manual run:
+  python -m tools.llm_proxy.digest_cli                # last 7 days
+  python -m tools.llm_proxy.digest_cli --days 30      # last 30 days
+  python -m tools.llm_proxy.digest_cli --dry-run      # print only
+
+Schedule on fly.io (weekly Mondays 14:00 UTC):
+  flyctl machine run \
+      --config infra/fly/fly.toml \
+      --schedule "0 14 * * 1" \
+      registry.fly.io/<app>:latest \
+      python -m tools.llm_proxy.digest_cli
+
+Or weekly via GitHub Actions: add a workflow with
+`on: schedule: - cron: "0 14 * * 1"` that calls the CLI with the same
+GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SHEET_ID secrets used in fly.io.
+
+
+TIME-AWARE BEHAVIOR
+-------------------
+The receptionist's greeting changes by time-of-day:
+  Mon-Fri 9am-5pm PT  → "business hours" framing
+  Outside those hours → "after hours" framing
+
+
+TROUBLESHOOTING
+---------------
+- /healthz returns sheets_writer_ready=false:
+  Service-account JSON not loaded or sheet not shared with the service-account
+  email. Check GOOGLE_SERVICE_ACCOUNT_FILE / GOOGLE_SHEET_ID and the Sheet's
+  share settings.
+
+- Twilio call connects but no audio:
+  Check fly.io logs (`flyctl logs --config infra/fly/fly.toml`). Likely
+  DEEPGRAM_API_KEY or CARTESIA_API_KEY/CARTESIA_VOICE_ID is missing, the
+  WebSocket closes with code 1011.
+
+- Twilio signature validation fails:
+  PUBLIC_BASE_URL must match the host Twilio actually called. On fly.io that
+  is `<app>.fly.dev` (or your configured custom domain).

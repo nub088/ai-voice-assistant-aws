@@ -1,0 +1,181 @@
+CALL DROPS, INTERMITTENT "3 BEEPS THEN DISCONNECT" DIAGNOSIS
+Date: 2026-05-21
+Project: clearslope-receptionist (AI Voice Assistant)
+Twilio number: +18136076475
+
+================================================================
+TL;DR
+================================================================
+Root cause: COLD-PATH Media Stream WebSocket handshake failures.
+
+  - The first call after an idle period (or right after a previous
+    failed call) frequently fails to establish the Twilio Media
+    Stream WebSocket → Twilio plays its SIT-tones + "We're sorry"
+    TTS → caller hears 3 beeps and a disconnect.
+  - A retry within seconds-to-minutes usually succeeds.
+  - min_machines_running=1 keeps the PROCESS alive, but does not
+    keep upstream connections (Deepgram / Cartesia / Anthropic)
+    or asyncio state warm.
+
+Pattern proven via Twilio Monitor Alerts (error code 31921):
+~46% failure rate, every failure on a cold or back-to-back call.
+
+NOT caused by: the second Fly.io project. Failures happened
+both before AND after the second project was removed.
+
+================================================================
+EVIDENCE, Last 14 days, all 13 calls
+================================================================
+Pulled via tools/twilio_call_diagnostics.py
+(read-only Twilio REST API, free, no secrets printed)
+
+Call log (oldest → newest):
+  2026-05-13 18:47:18   0s  FAIL  31921    first call of session
+  2026-05-13 18:47:27   1s  FAIL  31921    retry +9s, fails again
+  2026-05-13 22:31:57 233s   ok           after long idle, succeeded
+  2026-05-13 22:55:57  26s   ok           quick retry, succeeded
+  2026-05-13 22:57:34   0s  FAIL  31921    ~70s idle → fail
+  2026-05-13 23:00:00  11s   ok           retry +2.5min
+  2026-05-13 23:11:34 4s (15003 only, edge case)
+  2026-05-13 23:14:35 120s   ok
+  2026-05-21 16:37:13 3s FAIL (15003 only, 3-beep TTS)
+  2026-05-21 16:37:16   0s  FAIL  31921    instant retry → fail
+  2026-05-21 16:37:28  53s   ok           +12s → works
+  2026-05-21 16:49:48   0s  FAIL  31921    ~11min idle → fail
+  2026-05-21 17:04:55  25s   ok           +15min → works
+
+Failure clustering: every failure is either (a) the first call of
+a session, or (b) within seconds of a previous failed call.
+
+Twilio Monitor Alerts in the window:
+  error_code 15003: 13 occurrences (status callback 404, see Issue B)
+  error_code 31921: 5 occurrences (Media Stream WS connection failed, see Issue A)
+
+================================================================
+ISSUE A, Media Stream WebSocket fails (the actual drop cause)
+================================================================
+Error code: 31921 ("Stream, Connection error")
+Source: tools/llm_proxy/voice_routes.py:146 (WS /twilio/stream)
+
+What's happening:
+  1. POST /twilio/voice succeeds → returns <Connect><Stream> TwiML
+  2. Twilio opens WS to /twilio/stream
+  3. Handshake or first-frame exchange fails on cold path
+  4. Twilio falls through to its error path → 3 beeps + "we're sorry"
+
+What it's NOT:
+  - Not Twilio routing (call reaches the app per /healthz being 200)
+  - Not the second Fly project (failures occurred after removal too)
+  - Not /twilio/voice timing out (that would be error 11200, not 31921)
+  - Not a missing route, voice_router is mounted in main.py:320
+
+What it likely IS:
+  - Upstream WebSocket cold start (Deepgram / Cartesia) takes too long
+    on the FIRST call after idle, exceeding Twilio's media-stream
+    setup tolerance
+  - shared-cpu-1x / 1 GB is thin for the Pipecat pipeline's startup
+  - In-memory pending_calls bridge (voice_routes.py:189) is FINE in
+    steady state but would be lost on any restart, not the issue
+    here, since /healthz shows the process is up
+  - Possible asyncio event-loop starvation during pipeline init on
+    cold path
+
+================================================================
+ISSUE B, /twilio/status returns 404 (noise, not a drop cause)
+================================================================
+Error code: 15003, every call generates one (13/13)
+Verified locally: curl https://clearslope-receptionist.fly.dev/twilio/status → 404
+Verified in code: no /twilio/status route defined in
+                  tools/llm_proxy/voice_routes.py or main.py
+
+Twilio is posting status callbacks to a URL that doesn't exist.
+This happens AFTER the call so it can't cause the drop, but it's
+noise in the Debugger and should be fixed:
+  Option 1 (cheap): add a no-op route:
+    @router.post("/twilio/status")
+    async def twilio_status(): return Response(status_code=204)
+  Option 2: clear the statusCallback URL on the Twilio number
+            config (Twilio Console → Phone Numbers → Voice config)
+
+================================================================
+THINGS TO DO NEXT, evidence-first, no compute bumps yet
+================================================================
+
+1. PULL FLY LOGS for the failing CallSids to see what the app
+   actually did during a 31921 failure.
+
+   The fly CLI is NOT currently installed on this machine. Either:
+     - Install: curl -L https://fly.io/install.sh | sh
+     - OR use the Fly dashboard:
+       https://fly.io/apps/clearslope-receptionist/monitoring
+
+   Then look at timestamps:
+     2026-05-21 16:37:13, 16:37:16, 16:49:48
+     2026-05-13 18:47:18, 22:57:34
+   Specifically search for:
+     - "twilio_stream"        (did the WS handler enter?)
+     - "twilio_voice"          (did /twilio/voice get hit?)
+     - "no pending_calls"      (bridge race?)
+     - tracebacks / 500s
+     - "starting pipeline"     (did Pipecat get to start?)
+
+2. FIX /twilio/status (15003 noise), see Option 1 above. Trivial PR.
+
+3. INSTRUMENT the WS handler with timing logs to localize the slow
+   step on cold path. In voice_routes.py:146:
+     - log t0 at websocket.accept()
+     - log t1 after receive 'connected'
+     - log t2 after receive 'start'
+     - log t3 before run_voice_session
+     - log t4 inside run_voice_session before first audio frame
+   This shows whether the cold-path delay is in the WS handshake
+   (Fly proxy / TLS), the control-frame exchange (unlikely), or
+   in run_voice_session's upstream connection setup (likely).
+
+4. CONSIDER warm-up, once instrumentation confirms upstream WS
+   setup is the slow step, options ranked $0 → $$$:
+     a. Periodic /healthz internal task that pre-opens a Deepgram
+        and Cartesia connection at startup and re-pings every N min.
+     b. Lazy connection pool with keep-alive.
+     c. Move from shared-cpu-1x to a dedicated CPU (LAST resort,         verify the issue is CPU-bound first; cost-conscious rule).
+
+DO NOT bump Fly compute until step 3 actually shows CPU saturation
+during cold path.
+
+================================================================
+KEY FILES / LINES
+================================================================
+  - infra/fly/fly.toml, Fly config: shared-cpu-1x, 1 GB, 1 region (sjc),
+                         min_machines_running = 1
+  - tools/llm_proxy/main.py:250, /healthz endpoint (returns 200 today)
+  - tools/llm_proxy/main.py:320, include_router(voice_router)
+  - tools/llm_proxy/voice_routes.py:82, POST /twilio/voice
+  - tools/llm_proxy/voice_routes.py:146, WS /twilio/stream (failure site)
+  - tools/llm_proxy/voice_routes.py:189, pending_calls bridge
+                                          (in-memory, lost on restart)
+  - tools/twilio_call_diagnostics.py, NEW: diagnostic script.
+        Usage: python tools/twilio_call_diagnostics.py [--days N] [--all]
+
+================================================================
+SECOND FLY PROJECT, was it the cause?
+================================================================
+User had 2 Fly projects, reduced to 1 between sessions. Verdict:
+this was NOT the cause of the call drops. Evidence:
+  - Failures occurred on 2026-05-13 (when 2 projects existed) AND
+    on 2026-05-21 (after the reduction to 1).
+  - Twilio numbers only route webhooks to one Voice URL at a time;
+    a second app that wasn't the webhook target has no effect.
+  - The Voice URL Fallback was not implicated either, alerts all
+    point at the same primary URL (clearslope-receptionist.fly.dev).
+The reduction is still a good cleanup (less ops surface, lower
+billing risk) but unrelated to this symptom.
+
+================================================================
+USEFUL TWILIO ERROR CODES FOR REFERENCE
+================================================================
+  11200, HTTP retrieval failure (webhook timeout / 5xx)
+  11750, TwiML response invalid / too large
+  15003, Status callback delivery failed (not call-breaking)
+  31920, Stream, Stream not opened
+  31921, Stream, Connection error ← OUR ISSUE
+  31951, Stream, Internal error

@@ -1,0 +1,68 @@
+# PII / unredacted source data, must never be committed
+all green 2025 transcripts/
+**/raw_transcripts/
+**/raw_recordings/
+*.mp3
+*.wav
+
+# Redacted artifacts that contain hashed-but-still-sensitive metadata
+# (commit only after explicit review)
+eval/labeled_calls/
+eval/results/top_agent_transcripts/
+
+# Secrets
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+*.pem
+*.key
+google-service-account*.json
+client_secret*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LibreOffice / OpenOffice lock files (created while a doc is open)
+.~lock.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Client configs (contain live Twilio numbers)
+config/clients/
+
+# Personal working files
+last session.txt
+notes
+average cost per lead
+how to calculate how much calls they are losing
+how to pitch with 0 data
+.claude/settings.local.json
+
+# Project
+.tmp/
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/.terraform.lock.hcl

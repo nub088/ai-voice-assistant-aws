@@ -1,0 +1,44 @@
+
+    Why it's not worth it now
+
+    The pest taxonomy is ~11 KB (roughly 3–4K tokens). Claude's context window is 200K tokens, so this knowledge consumes ~2% of it. On top of that, the prompt is loaded once at startup and cached in-process,
+    and Anthropic's prompt caching means that static block is cheap on every repeat call (cached input tokens are ~10% the cost of fresh ones). So you're paying almost nothing, in money or latency, to keep
+    the whole knowledge base in the prompt.
+
+    RAG would add cost and risk here, not remove it:
+    - An embedding model + vector store to run and maintain
+    - A retrieval round-trip that adds latency, and this is a voice app, where every 100ms of added latency is audible as a pause
+    - A new failure mode: retrieval returning the wrong chunk, so the model answers as if it doesn't know something it actually has
+
+    When the full knowledge fits comfortably in the prompt, "stuff it all in" beats retrieval on accuracy, latency, and simplicity. The model sees everything every time.
+
+    When RAG becomes worth it
+
+    It's not one magic number, it's whichever of these you hit first:
+
+    1. Knowledge size vs. context window. As a rule of thumb:
+    - Under ~20–30K tokens (~60–100 KB): keep it all in the prompt. No contest.
+    - ~30K–100K tokens: gray zone. Still fits, but it starts eating context you'd rather spend on conversation history, and it adds latency/cost even when cached. Consider retrieval if most of it is irrelevant
+    to any given call.
+    - Over ~100–150K tokens (several hundred KB+): you're crowding the window and degrading the model's attention ("lost in the middle", models attend worse to huge prompts). RAG starts clearly winning.
+    - Exceeds the context window: RAG (or some retrieval) becomes mandatory, there's no other option.
+
+    2. Relevance ratio (often the real trigger before raw size). If on any given call the model only needs ~5% of the knowledge, e.g., one of 40 industry playbooks, or one client's specific docs out of
+    hundreds, then injecting all of it is wasteful and dilutes attention. Retrieval pays off here even if the total would technically still fit.
+
+    3. Per-tenant / multi-client knowledge. This system is already multi-tenant (per-client config). If each client accumulates its own substantial knowledge base, service catalogs, pricing docs, FAQs,
+    policies, you don't want every client's docs in every prompt. That's a natural RAG boundary, and it can trigger well before any single client's data is large.
+
+    4. Update frequency. If the knowledge changes constantly (live inventory, frequently-edited docs), a retrieval layer over a source-of-truth store beats redeploying/restarting the proxy to reload a static
+    file. The current design explicitly requires a restart to pick up changes, fine for a stable taxonomy, painful for volatile data.
+
+    Concrete threshold for this system
+
+    For the pest taxonomy specifically: it could grow roughly 5–10× (from ~11 KB to ~100 KB / ~30K tokens) before I'd even start considering retrieval, and it would need to push past several hundred KB before
+    RAG is clearly the right move on size alone.
+
+    The more likely trigger here isn't the taxonomy growing, it's breadth: expanding to many industries (each with its own taxonomy/playbook) or giving each client a large custom knowledge base. At that point
+    the relevance ratio collapses (any one call needs only that client's / that industry's slice), and that's what tips the scale toward retrieval, probably before raw token count ever forces your hand.
+
+    A useful middle ground before full RAG: simple routing/selection, pick the relevant industry or client document set with plain code (a lookup keyed on the client/config) and inject just that block. You
+    get most of the benefit of retrieval with none of the embedding/vector-store machinery, and it stays deterministic, which fits this codebase's "deterministic code handles execution" philosophy.

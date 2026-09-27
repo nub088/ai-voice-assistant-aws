@@ -1,0 +1,30 @@
+{
+  "effective_date": "2026-06-03",
+  "currency": "USD",
+  "_source_notes": "Per-minute rates from PRICING.txt (2026-05-21) + OPERATING_COSTS.txt (2026-06-03). Anthropic per-token rates VERIFIED 2026-06-03 against Anthropic's published Haiku 4.5 pricing (Standard tier). Account is currently on the Cartesia FREE plan (~27 min/mo, $0 marginal within the allotment), the cartesia per-minute range reflects PAID-plan marginal cost (~$0.022-0.030/min) so the tool models unit economics at volume; the cartesia per-character rate stays an estimate (no public $/char) until reconciled from a paid invoice. See .planning/cost-per-call-instrumentation-spec.md §7.",
+  "per_minute": {
+    "twilio_voice":         { "rate": 0.0085, "verified": true, "src": "PRICING.txt:10" },
+    "twilio_media_streams": { "rate": 0.0040, "verified": true, "src": "PRICING.txt:11" },
+    "deepgram_stt":         { "low": 0.0043, "high": 0.0058, "verified": true, "src": "OPERATING_COSTS.txt:31" },
+    "cartesia_tts":         { "low": 0.020, "high": 0.030, "verified": true, "src": "PRICING.txt:13" },
+    "anthropic_haiku":      { "low": 0.005, "high": 0.010, "verified": true, "src": "PRICING.txt:14" }
+  },
+  "per_message": {
+    "twilio_sms": { "rate": 0.0079, "a2p_fee": 0.003, "verified": true, "src": "PRICING.txt:15" }
+  },
+  "per_token": {
+    "_comment": "MEASURED Anthropic path. VERIFIED 2026-06-03 against Anthropic's published Haiku 4.5 pricing; console screenshots confirm model=claude-haiku-4-5-20251001 + Standard service tier, so these first-party list prices apply (1h cache write = 2.00/MTok if ever used).",
+    "_src": "https://platform.claude.com/docs/en/docs/about-claude/pricing  (Claude Haiku 4.5 row)",
+    "anthropic_haiku_4_5": {
+      "input_per_mtok": 1.00,
+      "output_per_mtok": 5.00,
+      "cache_write_5m_per_mtok": 1.25,
+      "cache_read_per_mtok": 0.10,
+      "verified": true
+    }
+  },
+  "per_character": {
+    "_comment": "MEASURED Cartesia path. Cartesia publishes NO $/character; it prices by included minutes (Pro $4/~133min, Startup $39/~1667min, Scale $239/~10667min => ~$0.022-0.030/min, which matches per_minute.cartesia_tts). rate_per_char below is DERIVED (~0.025/min / ~825 chars/min) and stays unverified until pinned from the active Cartesia plan ($/credit) or an invoice.",
+    "cartesia_sonic": { "rate_per_char": 0.0000303, "verified": false }
+  }
+}

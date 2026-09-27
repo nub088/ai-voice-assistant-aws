@@ -1,0 +1,19 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+google-service-account*.json
+credentials.json
+token.json
+config/clients
+raw_transcripts
+raw_recordings
+all green 2025 transcripts
+*.mp3
+*.wav

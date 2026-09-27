@@ -1,0 +1,125 @@
+================================================================
+AI VOICE RECEPTIONIST, OPERATING COST BREAKDOWN
+Generated: 2026-06-03
+================================================================
+
+Built from confirmed config (fly.toml, config/clients/*.json,
+tools/llm_proxy/voice_pipeline.py) + current list/PAYG provider
+rates (early 2026). Ranges reflect plan tier and call dynamics.
+No measured invoice data was available in-repo, share real
+monthly invoices to reconcile to the penny.
+
+CONFIRMED STACK
+  Twilio Voice + Media Streams
+    -> Deepgram STT (Nova streaming, default model)
+    -> Claude Haiku 4.5 (claude-haiku-4-5-20251001, prompt-cached)
+    -> Cartesia Sonic TTS (streaming, 8 kHz)
+  Host: single Fly shared-cpu-1x / 1 GB machine (always-on)
+
+HEADLINE
+  ~5-6 cents/min all-in at volume (1,000+ min/mo).
+  ~12 cents/min on a light client (fixed Fly/number costs dominate).
+  Dominated by Cartesia TTS at the top, fixed costs at low volume.
+
+
+================================================================
+1. VARIABLE COSTS  (billed only while a call is live)
+================================================================
+
+  Twilio Programmable Voice (inbound, US local DID)  $0.0085/min
+  Twilio Media Streams (bidirectional audio WS)      $0.0040/min
+  Deepgram STT (Nova streaming, default model)       $0.0043-0.0058/min
+  Cartesia Sonic TTS (streaming, char-based)         $0.020-0.030/min  <- #1 cost
+  Claude Haiku 4.5 (prompt-cached)                   $0.006-0.012/min
+  Google Sheets / Apps Script append                 ~$0
+  --------------------------------------------------------------
+  VARIABLE SUBTOTAL                                  ~$0.043-0.060/min
+                                                     midpoint ~ $0.05/min
+
+  Cartesia scales with how much the AI talks (characters spoken).
+  Claude scales with turns/min + conversation-history length.
+
+
+================================================================
+2. PER-CALL ADDERS  (not per-minute)
+================================================================
+
+  Twilio SMS (post-call)        $0.0079/msg + ~$0.003 A2P carrier fee
+    -> customer confirm (1) + optional owner emergency page (1)
+    -> ~$0.011-0.02 per call
+  Recording -> S3 storage + KMS  <$0.001/call (negligible)
+
+
+================================================================
+3. FIXED MONTHLY COSTS  (per client / infra)
+================================================================
+
+  Fly machine - shared-cpu-1x, 1 GB, ALWAYS-ON          ~$7.00/mo
+    (min_machines_running=1, auto_stop off -> paid even
+     at zero calls; deliberate, avoids voice cold-start)
+  Fly volume - 1 GB transcripts                         ~$0.15/mo
+  Fly retention machine (daily, 256 MB)                 ~$0.05-0.20/mo
+  Twilio local number rental                            ~$1.15/mo
+  Twilio A2P 10DLC campaign/brand                       ~$2-10/mo
+  AWS S3 + KMS key                                      ~$1-3/mo
+  Fly dedicated IPv4 (if used)                          $0-2/mo
+  --------------------------------------------------------------
+  FIXED SUBTOTAL                                        ~$12-25/mo
+                                                        (~$15 for one client)
+
+
+================================================================
+4. ALL-IN PER MINUTE  (depends entirely on volume)
+================================================================
+
+  Fixed costs spread thinner as minutes rise. Fly bills ~$7/mo
+  even at zero calls (auto-stop off).
+
+    Monthly minutes     Fixed/min      All-in /min
+    --------------------------------------------------
+    200  (light)        $0.075         ~$0.125/min
+    500  (Starter)      $0.030         ~$0.080/min
+    1,000               $0.015         ~$0.065/min
+    4,000  (Premium)    $0.004         ~$0.054/min
+
+  WORKED EXAMPLES
+    One 5-min call (marginal):  ~5 x $0.05 + $0.015 SMS  ~ $0.27/call
+    ClearSlope @ 500 min/mo:    $25 variable + $15 fixed + ~$1 SMS
+                                ~ $41/mo to operate
+      vs $199 Starter  -> ~80% gross margin
+      vs $999 Premium  -> ~96% gross margin
+
+
+================================================================
+5. TWO $0 ACTION ITEMS
+================================================================
+
+  (1) CARTESIA = 40-60% of per-minute cost, and it's char-driven.
+      Cheapest cost lever: make Sarah more concise. Shorter
+      responses = fewer characters = lower TTS bill AND lower
+      latency. Tighten verbose sections of
+      tools/prompts/receptionist_v0.3_data_driven.md, pays twice.
+
+  (2) COST-EXPOSURE FLAG: config/clients/clearslope.json has
+      "minute_ceiling": null, NO per-client cap. PRICING.txt
+      notes Deepgram/Cartesia/Fly cannot enforce hard billing
+      caps; the mitigation is this app-level ceiling. allgreen
+      has 200; ClearSlope has none. A runaway loop or abuse call
+      has no cost brake except Twilio's call-duration limit.
+      Set a generous-but-finite ceiling (e.g., 2,000) even on
+      the reference client.
+
+
+================================================================
+BOTTOM LINE
+================================================================
+  ~$0.05/min pure variable cost.
+  ~5-6 cents/min all-in once a client does 1,000+ min/mo.
+  ~12 cents/min on a barely-used client (always-on Fly dominates).
+
+  Next step option: a tools/ script that reads real Twilio /
+  Deepgram / Cartesia / Anthropic usage and prints actual
+  cost-per-call, turns this estimate into measured numbers.
+================================================================
+END
+================================================================

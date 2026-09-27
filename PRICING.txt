@@ -1,0 +1,203 @@
+================================================================
+AI VOICE RECEPTIONIST, PRICING PLAN
+Last updated: 2026-05-21
+================================================================
+
+UNIT COST (what it costs us to run a call)
+----------------------------------------------------------------
+~5–6 cents per minute, all-in. Breakdown:
+
+  Twilio Voice (US local DID)        $0.0085/min
+  Twilio Media Streams               $0.0040/min
+  Deepgram STT (Nova streaming)      $0.0043/min
+  Cartesia TTS (Sonic streaming)     $0.020–0.030/min
+  Claude Haiku 4.5 (cached prompt)   $0.005–0.010/min
+  Twilio SMS (per message, optional) $0.0079
+  Google Sheets append               ~$0
+  ----------------------------------------------------
+  Variable subtotal                  $0.045–0.055/min
+
+  Fly hosting (shared-cpu-1x, 1GB)   ~$10–20/mo fixed
+  → adds ~$0.001–0.015/min depending on volume
+
+Profitable on a single client at any tier from day one.
+No "wait until we scale" caveat.
+
+Hidden gotchas:
+  - Toll-free numbers cost ~3x local ($0.022/min). Charge as add-on.
+  - Deepgram, Cartesia, Fly DO NOT support hard billing caps.
+    Mitigate with Twilio call-duration limits + per-client minute
+    ceilings in app code.
+  - Long calls amplify Cartesia + Anthropic non-linearly
+    (TTS scales with character count).
+
+
+================================================================
+PRICING TIERS (what we charge clients)
+================================================================
+
+Standard 3-tier subscription with included minutes + overage.
+
+  ┌────────────┬──────────┬──────────────┬──────────────┐
+  │ Tier       │ Price/mo │ Included min │ Overage rate │
+  ├────────────┼──────────┼──────────────┼──────────────┤
+  │ Starter    │ $199     │ 500          │ $0.40/min    │
+  │ Pro        │ $499     │ 1,500        │ $0.30/min    │
+  │ Premium    │ $999     │ 4,000        │ $0.25/min    │
+  └────────────┴──────────┴──────────────┴──────────────┘
+
+  Plus one-time SETUP FEE: $299–$499
+    Covers prompt customization, Twilio number provisioning,
+    Sheets integration, and onboarding call.
+    Filters tire-kickers, pays for the manual onboarding labor.
+
+GROSS MARGIN at full utilization:
+  Starter:  ($199 - $25 cost) / $199  = ~87%
+  Pro:      ($499 - $75 cost) / $499  = ~85%
+  Premium:  ($999 - $200 cost) / $999 = ~80%
+
+  Effective margin after support, churn replacement, payment fees,
+  onboarding labor: ~65–75%. Still strong SaaS territory.
+
+WHY SUBSCRIPTION (not per-minute):
+  - SMB owners (pest, HVAC, plumbing, roofing) buy in monthly
+    line items, not metered usage.
+  - Sales rep can anchor a plan name, not cents-per-minute math.
+  - Predictable MRR is what makes the business salable later.
+  - Matches Smith.ai, Ruby, Synthflow, no buyer education needed.
+  - Overage rate protects margin during surge months.
+
+OPTIONS WE'RE NOT USING (and why):
+  - Pure per-minute ($0.50–$1.00/min): kills forecasting, makes
+    sales commission messy, customers churn the first slow month.
+
+OUTCOME-BASED PRICING (first-client model, decided 2026-05-21):
+----------------------------------------------------------------
+  $35–40 CAD flat per booked appointment.
+
+  Why flat rate (not percentage):
+    - Ticket value varies ($120–$300+). Percentage creates disputes.
+    - Flat rate = no ticket tracking, no arguments, clean invoice.
+    - ~17.5–20% of $200 CAD average, target range without the math.
+
+  Terms:
+    - Invoiced weekly from Google Sheets booking log.
+    - Cancellations: client still owes the fee. We booked the job.
+    - No monthly minimum. Pay only for results.
+
+  Why this works for seasonal businesses (pest control, HVAC, etc.):
+    - Busy season = more calls unanswered = highest AI value.
+    - Client has no incentive to renegotiate during surge, the AI
+      is capturing revenue they'd otherwise lose entirely.
+    - API cost per booked call is ~$0.52–$2.60 CAD (5–10 min call).
+      Margin is $32–39 CAD per booking at any realistic conversion rate.
+
+  Conversion estimate (inbound, high-intent callers): 30–50%.
+  Attribution: fully logged in Sheets, call, booking flag, contact.
+  No human confirmation needed; AI captures or it doesn't.
+
+  Path to subscription: use outcome pricing as a trial period
+  ("60 days, pay per booking, then we discuss a plan"). De-risks
+  the sale; converts once the client sees their monthly volume.
+
+
+================================================================
+ADD-ON (FUTURE): SMART SCHEDULING + ROUTE OPTIMIZATION
+================================================================
+
+THE FEATURE
+  When a customer calls to book, the assistant checks staff
+  availability AND drive-time between the new appointment and
+  existing scheduled jobs, then offers slots that minimize
+  windshield time. For pest/HVAC/plumbing where techs do
+  4–8 visits/day, this is a real ROI lever.
+
+COST IMPACT (when we eventually build it)
+
+  Google Maps Platform per booking call:
+    Geocoding (address → lat/lng)        $0.005
+    Distance Matrix (3–5 elements)       $0.015–0.025
+    Routes API (advanced, traffic)       $0.010 (optional)
+                                         ─────────────
+    Per booking total                    $0.020–0.040
+
+  Per-minute call cost added:            $0.001–0.003/min
+  LLM tool overhead (Haiku):             +$0.001–0.002/booking
+
+  Free tier: ~10,000 free Google Maps calls/mo per API.
+  Effectively $0 cost for first ~5,000–10,000 bookings/mo.
+  Won't pay anything for routing until ~50 active clients.
+
+  Calendar integration (Google Calendar API): free.
+
+PRICING FOR THE ADD-ON
+
+  Add-on rate:  +$199–$299/mo on top of any base tier
+    OR
+  New top tier: "Premium+" at $1,499/mo includes 5,000 min + routing
+
+  Why this much: optimized routing realistically saves a 5-tech crew
+  $200–500/day in productive billable time. $249/mo is an obvious yes.
+
+  Margin on add-on revenue: ~95% (variable cost is near zero).
+
+CONSTRAINTS TO NAME IN THE SALES PITCH
+  - Customer must keep tech schedules in a connected calendar
+    (Google Calendar, Calendly, supported FSM tool).
+    Manual whiteboards = no integration possible.
+  - Address geocoding has ~5–10% miss rate for rural / new-build
+    addresses. Need a manual override path.
+  - Position as "smart booking," NOT "fleet management." Won't
+    beat ServiceTitan or HouseCall Pro on full route optimization.
+
+
+================================================================
+WHY WE'RE NOT BUILDING THE ADD-ON YET
+================================================================
+
+DECISION: Wait until a client asks for it. Don't build speculatively.
+
+REASON 1, Launch blockers come first.
+  Per memory (multi_client_and_ship_readiness_plan.md), there are
+  3 blockers + 6 important items still open from the launch audit.
+  Twilio is also still on a trial account (must upgrade before
+  client #2). Building a new feature on top of an un-shipped
+  foundation is how products die.
+
+REASON 2, Speculative builds get the wrong abstractions.
+  The estimate says 1–2 weeks. Reality once you hit edge cases:
+  3–4 weeks. Lunch breaks, no-show buffers, multi-day jobs, techs
+  starting from home vs. office, after-hours emergency overrides,
+  geocoding misses in rural ZIPs. None of those are visible until
+  a real operator uses it. Build it without a customer and you'll
+  rip half of it out for the first one who actually does.
+
+REASON 3, Roadmap promises are valid sales currency.
+  "Smart routing is on our Q3 roadmap, included in Premium+ when
+  it ships" is a normal SaaS sales line. If a prospect won't sign
+  without it, you've found the customer worth building it for,   and now you have a paid spec.
+
+THE MIDDLE PATH (if the rep needs ammo):
+  Build a 2–3 day demo mock, a Loom or slide showing the
+  conversation flow ("I see Tuesday at 2pm puts you next to
+  our Wednesday job in your area, would that work?"). Sells
+  the vision without committing the engineering.
+
+TRIGGERS TO BUILD IT FOR REAL
+  1. A prospect explicitly says "I'd buy this if it had routing"
+     - get a signed LOI before you start coding.
+  2. ClearSlope (existing reference customer) asks for it. Real
+     spec, deepens the reference, retention upside.
+  3. Two or three clients independently raise it during onboarding
+     - that's market signal, not noise.
+
+Until one of those fires, every engineering hour is better spent on:
+  - Closing the 3 launch-readiness blockers
+  - Multi-client tenancy / onboarding automation
+  - The sales sheet and demo script for the rep
+  - Inbound support for the rep's first prospects
+
+
+================================================================
+END
+================================================================

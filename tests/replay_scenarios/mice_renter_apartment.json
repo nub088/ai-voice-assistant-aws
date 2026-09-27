@@ -1,0 +1,14 @@
+{
+  "label": "mice_renter_apartment",
+  "description": "Renter calling about mice in an apartment. Should result in landlord-coordination guidance + interior seal-up offer ($390-$585) and a log_request with urgency=routine or soon.",
+  "caller_turns": [
+    "Hi, I think I have mice in my walls",
+    "It's an apartment, I rent it",
+    "I haven't talked to my landlord about it yet",
+    "I'm hearing scratching at night, mostly in the kitchen wall",
+    "It's been about two weeks I'd say",
+    "OK that makes sense. What does that cost?",
+    "Yeah let's get something on the books. Tomorrow afternoon if possible. My name's Alex Rivera, my number is 604-555-0123, the address is 1422 East 12th Avenue Vancouver",
+    "Yeah you can use the same card I gave when I called before"
+  ]
+}

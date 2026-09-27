@@ -1,0 +1,14 @@
+{
+  "label": "wasp_emergency_allergy",
+  "description": "Wasps in a wall void with an allergic person in the household. Should be logged with urgency=emergency and trigger an owner SMS alert (in production).",
+  "caller_turns": [
+    "Hi, we've got wasps coming out of a wall in our living room",
+    "There's a constant trickle of them through a baseboard gap. We've killed maybe 30 inside today already",
+    "The nest is in the wall, we can hear them buzzing inside",
+    "It's a single-family house, we own it",
+    "My son is allergic, like hospital allergic. He came home from school an hour ago and he's in his bedroom upstairs but I'm freaking out",
+    "Yes please, anything you can do, we just need someone here today",
+    "Emily Tran, phone is 778-555-0911, the address is 3380 West 21st Avenue Vancouver",
+    "Yes use the same card on file"
+  ]
+}

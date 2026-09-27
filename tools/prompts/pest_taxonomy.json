@@ -1,0 +1,248 @@
+{
+  "_meta": {
+    "version": "v1",
+    "region": "BC, Canada (Lower Mainland focus)",
+    "purpose": "Domain knowledge the AI uses to disambiguate vague pest reports and ask the right narrowing questions. Loaded into the system prompt at proxy startup.",
+    "urgency_tiers": {
+      "emergency": "Same-day response expected (stinging swarm in occupied space, rodent in food prep, severe infestation impacting habitability).",
+      "standard": "Service within 2-3 business days.",
+      "scheduled": "Routine inspection / preventive / non-urgent."
+    }
+  },
+  "pests": [
+    {
+      "common_name": "German cockroach",
+      "aliases": ["roach", "cockroach", "small brown roach", "small cockroach"],
+      "id_questions": [
+        "About the size of a thumbnail, light-brown with two dark stripes behind the head?",
+        "Are you seeing them mostly in the kitchen or bathroom?",
+        "Are they appearing day or night?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "12-15mm, light-brown, two dark longitudinal stripes on the pronotum",
+      "common_locations": ["kitchen", "bathroom", "behind appliances", "under sinks"]
+    },
+    {
+      "common_name": "Oriental cockroach",
+      "aliases": ["water bug", "black beetle in basement", "shiny black bug"],
+      "id_questions": [
+        "Larger than a German cockroach, about an inch, and very dark brown or black?",
+        "Mostly in basements, drains, or damp areas?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "20-27mm, dark brown to black, glossy",
+      "common_locations": ["basements", "drains", "crawlspaces"]
+    },
+    {
+      "common_name": "Carpenter ant",
+      "aliases": ["big black ant", "winged ant", "wood ant"],
+      "id_questions": [
+        "Are they large, a quarter inch or more, and black or reddish?",
+        "Have you seen any with wings, especially indoors?",
+        "Have you noticed any small piles of sawdust-like material near baseboards or window frames?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "6-13mm, mostly black (sometimes reddish-black), single node on petiole",
+      "common_locations": ["damp wood", "window frames", "decks", "around plumbing leaks"]
+    },
+    {
+      "common_name": "Pavement ant",
+      "aliases": ["small black ant", "tiny ant", "kitchen ant", "ant trail"],
+      "id_questions": [
+        "Very small, under an eighth of an inch?",
+        "Mostly in trails on counters or sidewalks?"
+      ],
+      "urgency": "scheduled",
+      "visual_cues": "2.5-4mm, dark brown/black, faint stripes on head and thorax",
+      "common_locations": ["kitchen counters", "near sliding doors", "outside sidewalks/foundations"]
+    },
+    {
+      "common_name": "Pharaoh ant",
+      "aliases": ["yellow ant", "tiny yellow ant"],
+      "id_questions": [
+        "Tiny and yellowish/light brown rather than black?",
+        "Multiple separate trails branching across the home?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "1.5-2mm, pale yellow to light brown, two-node petiole",
+      "common_locations": ["bathrooms", "kitchens", "anywhere with moisture"]
+    },
+    {
+      "common_name": "Bed bug",
+      "aliases": ["bedbugs", "bites in bed", "bugs in mattress"],
+      "id_questions": [
+        "Are you finding small reddish-brown bugs the size of an apple seed in or near the bed?",
+        "Itchy bites in lines or clusters on parts of the body that touch bedding?",
+        "Any small dark spots on sheets, mattress seams, or behind the headboard?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "4-5mm, oval, flat, reddish-brown (darker after a feed)",
+      "common_locations": ["mattress seams", "box spring", "behind headboard", "couch"]
+    },
+    {
+      "common_name": "Wasps / yellow jackets",
+      "aliases": ["wasps", "hornets", "yellow jackets", "wasp nest", "stinging insects"],
+      "id_questions": [
+        "Have you seen a nest, and if so where, eaves, ground, attic, in a wall?",
+        "How close to a doorway, kid's play area, or sleeping space is it?",
+        "Has anyone been stung, and is anyone in the home allergic?"
+      ],
+      "urgency": "emergency",
+      "urgency_override_rules": [
+        "If allergy in household → emergency.",
+        "If nest is in the wall void or attic with active activity → emergency.",
+        "If solitary wasps without an identified nest → standard."
+      ],
+      "visual_cues": "yellow-and-black-banded body, narrow waist; nests are paper-grey or in-ground",
+      "common_locations": ["eaves", "underground (yellow jackets)", "attics", "wall voids"]
+    },
+    {
+      "common_name": "Honey bee",
+      "aliases": ["bees", "honey bees", "swarm of bees"],
+      "id_questions": [
+        "Fuzzy and golden-brown rather than smooth and yellow-banded?",
+        "Is this a swarm hanging on a branch, or have they moved into a structure?"
+      ],
+      "urgency": "standard",
+      "notes": "Out-of-scope for chemical treatment in BC, refer to a local beekeeper for live removal. AI should capture details and flag for human follow-up.",
+      "visual_cues": "fuzzy, golden-brown with darker bands",
+      "common_locations": ["tree branches (swarms)", "wall voids (established colonies)"]
+    },
+    {
+      "common_name": "House mouse",
+      "aliases": ["mice", "mouse", "small rodent", "tiny rat"],
+      "id_questions": [
+        "Small, about the size of a thumb, with a long thin tail and big ears?",
+        "Are you seeing droppings the size of rice grains?",
+        "Hearing scratching in walls or ceilings, especially at night?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "7-10cm body, gray-brown, large ears, pointed snout",
+      "common_locations": ["kitchens", "pantries", "wall voids", "garages"]
+    },
+    {
+      "common_name": "Norway rat",
+      "aliases": ["rat", "brown rat", "sewer rat", "big rat"],
+      "id_questions": [
+        "Larger than a mouse, body alone the size of a hand?",
+        "Heavy thick body, smaller ears than a mouse?",
+        "Droppings the size of olive pits?",
+        "Mostly at ground level / basement / outdoors near garbage?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "20-25cm body, brown/grey, blunt snout, tail shorter than body",
+      "common_locations": ["basements", "garages", "compost", "sewers", "ground floors"]
+    },
+    {
+      "common_name": "Roof rat",
+      "aliases": ["black rat", "ship rat", "rat in attic"],
+      "id_questions": [
+        "Slimmer and more agile than a Norway rat, with a long tail and large ears?",
+        "Hearing them in the attic, ceiling, or upper floors rather than basement?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "16-22cm body, dark brown/black, pointed snout, tail longer than body",
+      "common_locations": ["attics", "upper floors", "fruit trees", "vines"]
+    },
+    {
+      "common_name": "Spiders (black widow / hobo)",
+      "aliases": ["spider", "black widow", "hobo spider", "venomous spider"],
+      "id_questions": [
+        "Did you see a red hourglass mark on the underside?",
+        "Where did you find it, woodpile, garage corner, outdoor shed?",
+        "Did anyone get bitten?"
+      ],
+      "urgency": "standard",
+      "urgency_override_rules": [
+        "If anyone was bitten → advise calling 8-1-1 or seeking medical attention; flag for human follow-up."
+      ],
+      "visual_cues": "black widow: shiny black with red hourglass; hobo: brown with chevron pattern",
+      "common_locations": ["garages", "sheds", "woodpiles", "basements"]
+    },
+    {
+      "common_name": "Silverfish",
+      "aliases": ["silverfish", "fish bug", "tear-drop bug"],
+      "id_questions": [
+        "Small, silver, teardrop-shaped, fast-moving when you turn the light on?",
+        "Mostly in bathrooms or laundry rooms?"
+      ],
+      "urgency": "scheduled",
+      "visual_cues": "12-19mm, metallic silver, teardrop shape, three tail filaments",
+      "common_locations": ["bathrooms", "laundry rooms", "basements"]
+    },
+    {
+      "common_name": "Carpenter bee",
+      "aliases": ["wood bee", "big black bee", "boring bee"],
+      "id_questions": [
+        "Large, mostly black with a shiny abdomen, hovering around wood structures?",
+        "Have you seen perfectly round holes (about half-inch) in eaves, deck, or fence wood?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "large (similar to bumblebee), shiny black abdomen rather than fuzzy",
+      "common_locations": ["eaves", "decks", "fences", "untreated wood"]
+    },
+    {
+      "common_name": "Cluster fly",
+      "aliases": ["flies in window", "fall flies", "lots of flies"],
+      "id_questions": [
+        "Lots of slow-moving large flies clustered on warm windows, especially in fall or warm winter days?",
+        "Mostly upstairs / attic-side?"
+      ],
+      "urgency": "scheduled",
+      "visual_cues": "8-10mm, dark grey with golden hairs on thorax",
+      "common_locations": ["attic", "upper-floor windows"]
+    },
+    {
+      "common_name": "Fruit fly",
+      "aliases": ["fruit flies", "tiny flies in kitchen", "small flies"],
+      "id_questions": [
+        "Tiny and reddish-eyed, hovering around fruit, recycling, or drains?"
+      ],
+      "urgency": "scheduled",
+      "visual_cues": "3mm, tan with red eyes",
+      "common_locations": ["kitchens", "compost", "drains"]
+    },
+    {
+      "common_name": "Drain fly",
+      "aliases": ["drain flies", "moth flies", "sewage flies", "flies coming from drain"],
+      "id_questions": [
+        "Tiny fuzzy moth-like flies near sinks, tubs, or floor drains?"
+      ],
+      "urgency": "scheduled",
+      "visual_cues": "2mm, fuzzy moth-like, dark grey",
+      "common_locations": ["bathroom sinks", "floor drains", "washing machine drains"]
+    },
+    {
+      "common_name": "Squirrel (in attic)",
+      "aliases": ["squirrel", "squirrels in attic", "scratching in roof"],
+      "id_questions": [
+        "Scratching or running sounds in the attic, especially morning and dusk?",
+        "Any chewed entry points around the roofline or vents?"
+      ],
+      "urgency": "standard",
+      "visual_cues": "n/a, usually identified by sound + entry holes",
+      "common_locations": ["attic", "soffits", "roof vents"]
+    },
+    {
+      "common_name": "Raccoon (in attic / yard)",
+      "aliases": ["raccoon", "racoon", "big animal in attic"],
+      "id_questions": [
+        "Heavy thumping at night rather than light scratching?",
+        "Have you seen damage to attic insulation, vents, or roof shingles?"
+      ],
+      "urgency": "standard",
+      "notes": "Wildlife removal often requires a separate licensed wildlife operator in BC. AI captures details and flags for human follow-up.",
+      "visual_cues": "large mammal, masked face, ringed tail",
+      "common_locations": ["attic", "chimney", "under deck"]
+    },
+    {
+      "common_name": "Out-of-scope (dead animal, skunk, bear, deer, bird in chimney, etc.)",
+      "aliases": ["dead animal", "dead bird", "skunk", "bear", "deer", "bird stuck"],
+      "id_questions": [],
+      "urgency": "scheduled",
+      "notes": "{{business_short_name}} does not handle dead-animal pickup, large mammals, or birds. AI should politely explain, take a message in case the team can refer the caller to the right service (city / wildlife rescue), and end the call.",
+      "visual_cues": "n/a",
+      "common_locations": ["n/a"]
+    }
+  ]
+}

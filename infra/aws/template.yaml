@@ -1,0 +1,436 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Single-task AI voice receptionist on ECS Fargate with Bedrock, S3, DynamoDB and a post-call agent.
+
+Parameters:
+  CreateService:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  ImageUri:
+    Type: String
+    Default: unused
+  AgentCodeKey:
+    Type: String
+    Default: unused
+  DomainName:
+    Type: String
+    Description: HTTPS hostname for Twilio callbacks, e.g. voice.example.com
+  CertificateArn:
+    Type: String
+    Description: Valid ACM certificate ARN for DomainName in this region
+  HostedZoneId:
+    Type: String
+    Default: ''
+    Description: Optional Route 53 public hosted zone ID; otherwise create DNS yourself
+  AppSecretArn:
+    Type: String
+    Description: Existing Secrets Manager JSON secret with Twilio, provider and client settings
+  BedrockModelId:
+    Type: String
+    Description: Bedrock model or inference profile ID available in this region
+
+Conditions:
+  DeployApp: !Equals [!Ref CreateService, 'true']
+  CreateDns: !Not [!Equals [!Ref HostedZoneId, '']]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.55.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.55.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.55.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetBRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTPS ingress for Twilio
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Only the ALB may reach the voice app
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Type: application
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '3600'
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref Vpc
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /healthz
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '120'
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDns
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt LoadBalancer.DNSName
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+
+  ImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+  TranscriptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-redacted-data
+            Status: Enabled
+            Prefix: transcripts/
+            ExpirationInDays: 90
+          - Id: expire-analysis
+            Status: Enabled
+            Prefix: analysis/
+            ExpirationInDays: 90
+          - Id: expire-deployment-artifacts
+            Status: Enabled
+            Prefix: deployment/
+            ExpirationInDays: 30
+  CallsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+  EcsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: voice-app-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref AppSecretArn
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:DeleteItem, dynamodb:Scan]
+                Resource: !GetAtt CallsTable.Arn
+              - Effect: Allow
+                Action: [s3:PutObject, s3:DeleteObject]
+                Resource: !Sub '${TranscriptBucket.Arn}/transcripts/*'
+              - Effect: Allow
+                Action: s3:DeleteObject
+                Resource: !Sub '${TranscriptBucket.Arn}/analysis/*'
+              - Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource: '*'
+              - Effect: Allow
+                Action: bedrock:Retrieve
+                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*'
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Condition: DeployApp
+    Properties:
+      Family: !Sub '${AWS::StackName}-voice'
+      Cpu: '1024'
+      Memory: '2048'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: voice
+          Image: !Ref ImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          StopTimeout: 120
+          Environment:
+            - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
+            - {Name: AWS_ALB_PROXY, Value: '1'}
+            - {Name: ENVIRONMENT, Value: production}
+            - {Name: TRUSTED_PROXY_IPS, Value: 10.55.0.0/16}
+            - {Name: AWS_CALLS_TABLE, Value: !Ref CallsTable}
+            - {Name: AWS_TRANSCRIPT_BUCKET, Value: !Ref TranscriptBucket}
+            - {Name: AWS_APP_SECRET_ARN, Value: !Ref AppSecretArn}
+            - {Name: BEDROCK_MODEL_ID, Value: !Ref BedrockModelId}
+            - {Name: PUBLIC_BASE_URL, Value: !Ref DomainName}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref EcsLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: voice
+  VoiceService:
+    Type: AWS::ECS::Service
+    Condition: DeployApp
+    DependsOn: HttpsListener
+    Properties:
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+      TaskDefinition: !Ref TaskDefinition
+      LoadBalancers:
+        - ContainerName: voice
+          ContainerPort: 8080
+          TargetGroupArn: !Ref TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref TaskSecurityGroup]
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+
+  AgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: DeployApp
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-post-call'
+      RetentionInDays: 30
+  AgentRole:
+    Type: AWS::IAM::Role
+    Condition: DeployApp
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: post-call-agent-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${TranscriptBucket.Arn}/transcripts/*'
+              - Effect: Allow
+                Action: [s3:PutObject, s3:DeleteObject]
+                Resource:
+                  - !Sub '${TranscriptBucket.Arn}/analysis/*'
+                  - !Sub '${TranscriptBucket.Arn}/transcripts/*'
+              - Effect: Allow
+                Action: [dynamodb:Scan, dynamodb:DeleteItem]
+                Resource: !GetAtt CallsTable.Arn
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: '*'
+  PostCallAgent:
+    Type: AWS::Lambda::Function
+    Condition: DeployApp
+    DependsOn: AgentLogGroup
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-post-call'
+      Runtime: python3.12
+      Handler: post_call_agent.handle
+      Role: !GetAtt AgentRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref TranscriptBucket
+        S3Key: !Ref AgentCodeKey
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          AWS_TRANSCRIPT_BUCKET: !Ref TranscriptBucket
+          AWS_CALLS_TABLE: !Ref CallsTable
+  PostCallRule:
+    Type: AWS::Events::Rule
+    Condition: DeployApp
+    Properties:
+      EventPattern:
+        source: [aws.s3]
+        detail-type: [Object Created]
+        detail:
+          bucket:
+            name: [!Ref TranscriptBucket]
+          object:
+            key:
+              - prefix: transcripts/
+      Targets:
+        - Id: post-call-agent
+          Arn: !GetAtt PostCallAgent.Arn
+  PostCallPermission:
+    Type: AWS::Lambda::Permission
+    Condition: DeployApp
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PostCallAgent
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PostCallRule.Arn
+  DailyRetentionRule:
+    Type: AWS::Events::Rule
+    Condition: DeployApp
+    Properties:
+      ScheduleExpression: rate(1 day)
+      Targets:
+        - Id: retention
+          Arn: !GetAtt PostCallAgent.Arn
+  DailyRetentionPermission:
+    Type: AWS::Lambda::Permission
+    Condition: DeployApp
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PostCallAgent
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyRetentionRule.Arn
+
+Outputs:
+  RepositoryUri:
+    Value: !GetAtt ImageRepository.RepositoryUri
+  TranscriptBucketName:
+    Value: !Ref TranscriptBucket
+  CallsTableName:
+    Value: !Ref CallsTable
+  LoadBalancerDns:
+    Value: !GetAtt LoadBalancer.DNSName
+  VoiceWebhook:
+    Value: !Sub 'https://${DomainName}/twilio/voice'

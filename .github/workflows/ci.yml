@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install dependencies
+        # The hash-pinned lock (S16) keeps CI byte-identical to the production
+        # image; pytest/pytest-asyncio/ruff are part of requirements.txt.
+        run: |
+          pip install -r requirements.lock
+          python -m spacy download en_core_web_sm
+
+      - name: Lint
+        run: ruff check tools/ tests/
+
+      - name: Test
+        run: python -m pytest tests/ -q

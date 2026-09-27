@@ -1,0 +1,12 @@
+{
+  "label": "honey_bees_out_of_scope",
+  "description": "Caller has honey bees in a wall, must be referred to a beekeeper, not treated. Should produce a log_request with out_of_scope=true and a polite closing.",
+  "caller_turns": [
+    "Hi, we've got bees in the wall of our house",
+    "They're honey bees, we can see them coming and going from a knot in the cedar siding",
+    "It's been about a month, the activity has gotten heavier",
+    "Single-family house, we own it. Vancouver.",
+    "Yeah I figured. Anyone you'd recommend?",
+    "Sure, my name is Marcus Lee, callback 604-555-0188"
+  ]
+}

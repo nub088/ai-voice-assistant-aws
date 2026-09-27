@@ -1,0 +1,49 @@
+# Sensitive
+.env
+.env.*
+!.env.example
+google-service-account*.json
+client_secret*.json
+credentials.json
+token.json
+
+# Local-only
+.tmp/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data we should never bake into images
+all green 2025 transcripts/
+**/raw_transcripts/
+**/raw_recordings/
+*.mp3
+*.wav
+
+# Eval artifacts
+eval/labeled_calls/
+eval/results/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Repo metadata
+.git/
+.gitignore
+
+# Tests are not needed in the runtime image
+tests/
+
+# Misc
+docs/
+analyze_calls.py
+detailed_call_analysis.py
+DEMO_STARTUP.txt
+start.sh
