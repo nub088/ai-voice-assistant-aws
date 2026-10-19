@@ -4,8 +4,10 @@ This variant is derived from [the original voice assistant](https://github.com/n
 It keeps the Twilio
 phone interface and Pipecat audio pipeline, and moves hosting, model inference,
 storage, secrets, and post-call analysis to AWS. The application and its AWS
-infrastructure **have been deployed** to an AWS account but have not been
-load tested.
+infrastructure **have been deployed** on AWS and serve real customers.
+Controlled load testing has not been completed. See the
+[production results](../../README.md#production-results) for actual call,
+booking, and revenue figures.
 
 | Existing component | AWS variant |
 | --- | --- |
@@ -102,6 +104,5 @@ operator script. The Fly-only Twilio recording retention job also needs a
 separate AWS schedule before production use with voicemail recording.
 
 Always-on Fargate, the ALB, CloudWatch, Secrets Manager, DynamoDB, S3, Bedrock,
-Twilio, Deepgram, and Cartesia can all incur charges. This version is an AWS
-architecture demonstration; the Fly deployment can remain the economical
-live option. No AWS resource is created until you run the deploy script.
+Twilio, Deepgram, and Cartesia can all incur charges. The deployment script
+provisions AWS resources for each new stack.

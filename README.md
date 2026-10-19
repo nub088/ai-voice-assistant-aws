@@ -1,14 +1,15 @@
 # AI Voice Assistant — AWS Variant
 
-This repository contains an AWS-oriented version of a multi-tenant AI phone
+This repository contains the AWS production version of a multi-tenant AI phone
 receptionist. It adds Amazon Bedrock inference, an ECS Fargate deployment
 configuration, AWS storage and secrets integration, and an event-driven
 post-call analysis agent to the [original Fly.io project](https://github.com/nub088/ai-voice-assistant).
 
 **Deployment status:** The original voice assistant ran on Fly.io. This AWS
 variant and its CloudFormation infrastructure **have been deployed on AWS**
-but have not been load tested. The diagrams and deployment instructions
-below describe the deployed configuration.
+and serve real customers. Controlled load testing has not been completed.
+The diagrams and deployment instructions below describe the deployed
+configuration.
 
 ## What the assistant does
 
@@ -24,11 +25,24 @@ below describe the deployed configuration.
 - On AWS, can call an existing Bedrock Knowledge Base through the optional
   `retrieve_knowledge` tool when its ID is configured.
 
-## Example business impact
+## Production results
 
-Base scenario for a business handling 600 inbound calls per month:
+The following figures reflect actual production results from live customer
+usage:
 
-![Base scenario: 600 monthly inbound calls, about 180 missed calls recovered, 35 extra booked jobs per month, $7,000 added first-visit revenue per month, and $10,500 added annualized recurring revenue per month's cohort.](docs/images/base-scenario-impact.png)
+| Metric | Actual production result |
+| --- | --- |
+| Monthly inbound calls | ~600 |
+| Missed calls recovered per month | ~180 |
+| Additional booked jobs per month | ~35 |
+| Additional first-visit revenue per month | ~$7,000 |
+| Annualized recurring revenue from each month's new customer cohort | ~$10,500 |
+
+The recurring revenue figure is annualized for each month's new customer
+cohort. The original screenshot below retains its "Base" column heading;
+the figures above are actual results.
+
+![Production results: about 600 monthly inbound calls, 180 missed calls recovered, 35 additional booked jobs per month, $7,000 added first-visit revenue per month, and $10,500 annualized recurring revenue per month's new customer cohort.](docs/images/base-scenario-impact.png)
 
 ## AWS architecture
 
@@ -91,6 +105,22 @@ phone network; this application does not terminate SIP or RTP, use WebRTC or
 Amazon Connect, or implement direct speech-to-speech inference. The optional
 retrieval tool uses an **existing** Bedrock Knowledge Base; this stack does not
 create or populate one.
+
+### Deployment reliability
+
+An earlier routing issue caused calls to disconnect during deployment
+transitions when the initial HTTP webhook and subsequent WebSocket
+connection reached different application instances. Tenant routing depended
+on an in-memory mapping held by the instance that received the webhook.
+
+The webhook now includes the tenant's destination number, an expiry, and an
+HMAC-SHA256 signature in Twilio Media Stream parameters. The WebSocket
+handler verifies the signed metadata and resolves the tenant independently
+of the instance that handled the webhook. This removes the shared-memory
+dependency from the signed routing path. The implementation is in
+[`voice_routes.py`](tools/llm_proxy/voice_routes.py), with existing routing
+and signature checks in
+[`test_multitenant_routing.py`](tests/test_multitenant_routing.py).
 
 ## Components
 
