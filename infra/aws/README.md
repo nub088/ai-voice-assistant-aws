@@ -3,8 +3,9 @@
 This variant is derived from [the original voice assistant](https://github.com/nub088/ai-voice-assistant).
 It keeps the Twilio
 phone interface and Pipecat audio pipeline, and moves hosting, model inference,
-storage, secrets, and post-call analysis to AWS. It has **not** been deployed
-or load tested against an AWS account.
+storage, secrets, and post-call analysis to AWS. The application and its AWS
+infrastructure **have been deployed** to an AWS account but have not been
+load tested.
 
 | Existing component | AWS variant |
 | --- | --- |

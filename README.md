@@ -6,9 +6,9 @@ configuration, AWS storage and secrets integration, and an event-driven
 post-call analysis agent to the [original Fly.io project](https://github.com/nub088/ai-voice-assistant).
 
 **Deployment status:** The original voice assistant ran on Fly.io. This AWS
-variant has been implemented in code and CloudFormation but **has not been
-deployed or load tested on AWS**. The diagrams and deployment instructions
-below describe the intended configuration, not an operating AWS service.
+variant and its CloudFormation infrastructure **have been deployed on AWS**
+but have not been load tested. The diagrams and deployment instructions
+below describe the deployed configuration.
 
 ## What the assistant does
 
@@ -38,7 +38,7 @@ flowchart LR
     caller([Caller]) --> twilio[Twilio Voice<br/>Media Streams]
     twilio <-->|HTTPS webhook + audio WebSocket| alb[Application Load Balancer<br/>TLS termination]
 
-    subgraph aws["AWS variant — code and CloudFormation, not deployed"]
+    subgraph aws["AWS variant — deployed on AWS"]
         alb <--> app[FastAPI + Pipecat<br/>ECS Fargate: one task]
         app <-->|live agent inference| bedrock[Amazon Bedrock]
         app -->|redacted transcript| s3[(Amazon S3<br/>transcripts/)]
@@ -135,9 +135,8 @@ ruff check tools/ tests/
 
 The [AWS deployment guide](infra/aws/README.md) documents the secret shape,
 required resources, `deploy.sh` arguments, Twilio webhook setup, and smoke
-checks. Its deployment command creates billable AWS resources and has not been
-run for this variant. Do not treat a passing local test suite as a deployment
-or load test.
+checks. Its deployment command creates billable AWS resources. Do not treat a
+passing local test suite as a deployment or load test.
 
 ## Current AWS limitations
 
@@ -150,8 +149,8 @@ or load test.
 - The Fly-only Twilio recording retention job needs an AWS schedule before
   using voicemail recordings in production.
 - Model invocation IAM permissions need narrowing after the model or
-  inference profile is chosen. An AWS staging deployment and live-call tests
-  are needed before making availability, latency, security, or cost claims.
+  inference profile is chosen. Live-call tests are needed before making
+  availability, latency, security, or cost claims.
 
 ## License
 
