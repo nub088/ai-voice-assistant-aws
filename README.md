@@ -24,6 +24,12 @@ below describe the deployed configuration.
 - On AWS, can call an existing Bedrock Knowledge Base through the optional
   `retrieve_knowledge` tool when its ID is configured.
 
+## Example business impact
+
+Base scenario for a business handling 600 inbound calls per month:
+
+![Base scenario: 600 monthly inbound calls, about 180 missed calls recovered, 35 extra booked jobs per month, $7,000 added first-visit revenue per month, and $10,500 added annualized recurring revenue per month's cohort.](docs/images/base-scenario-impact.png)
+
 ## AWS architecture
 
 A single FastAPI/Pipecat task runs on ECS Fargate behind an HTTPS Application
